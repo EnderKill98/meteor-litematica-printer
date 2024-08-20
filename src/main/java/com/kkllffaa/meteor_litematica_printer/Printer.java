@@ -32,6 +32,8 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.enums.BlockHalf;
 import net.minecraft.block.enums.SlabType;
+import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.entity.MovementType;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -39,11 +41,8 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.packet.c2s.play.CreativeInventoryActionC2SPacket;
 import net.minecraft.state.property.Properties;
 import net.minecraft.util.Pair;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.*;
 import net.minecraft.util.math.Direction.Axis;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.math.Vec3i;
 
 public class Printer extends Module {
 	private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -188,10 +187,19 @@ public class Printer extends Module {
         .build()
     );
 
+    private final Setting<Boolean> moveToUnrechable = sgGeneral.add(new BoolSetting.Builder()
+        .name("move-to-unreachable")
+        .description("Attempt to 2D-Move close to next unrechable block")
+        .defaultValue(true)
+        .build()
+    );
+
+
     private int timer;
     private int usedSlot = -1;
     private final List<BlockPos> toSort = new ArrayList<>();
     private final List<Pair<Integer, BlockPos>> placed_fade = new ArrayList<>();
+    private BlockPos closestUnreachablePos = null;
 
 
 	// TODO: Add an option for smooth rotation. Make it look legit.
@@ -199,7 +207,7 @@ public class Printer extends Module {
 	// https://github.com/CCBlueX/LiquidBounce/blob/nextgen/src/main/kotlin/net/ccbluex/liquidbounce/utils/aiming/RotationsUtil.kt#L257
 
 	public Printer() {
-		super(Addon.CATEGORY, "litematica-printer", "Automatically prints open schematics");
+		super(Addon.CATEGORY, "litematica-printer", "Automatically prints open schematics (+improvements by Ender)");
 	}
 
     @Override
@@ -211,6 +219,11 @@ public class Printer extends Module {
     public void onDeactivate() {
 		placed_fade.clear();
 	}
+
+    private boolean canReach(ClientPlayerEntity player, BlockPos blockPos, int printingRange) {
+        final double interactRange = Math.min(printingRange, player.getBlockInteractionRange() + 1.0);
+        return new Box(blockPos).squaredMagnitude(player.getEyePos()) < interactRange * interactRange;
+    }
 
 	@EventHandler
 	private void onTick(TickEvent.Post event) {
@@ -230,15 +243,15 @@ public class Printer extends Module {
 		}
 
 		toSort.clear();
+        closestUnreachablePos = null;
 
 
 		if (timer >= printing_delay.get()) {
-			BlockIterator.register(printing_range.get() + 1, printing_range.get() + 1, (pos, blockState) -> {
+			BlockIterator.register(printing_range.get() + 1, printing_range.get() + 3, (pos, blockState) -> {
 				BlockState required = worldSchematic.getBlockState(pos);
 
 				if (
-						mc.player.getBlockPos().isWithinDistance(pos, printing_range.get())
-						&& blockState.isReplaceable()
+						blockState.isReplaceable()
 						&& !required.isLiquid()
 						&& !required.isAir()
 						&& blockState.getBlock() != required.getBlock()
@@ -262,7 +275,7 @@ public class Printer extends Module {
 						&& MyUtils.getVisiblePlaceSide(
 							pos,
 							required,
-							wantedSlabType, 
+							wantedSlabType,
 							wantedBlockHalf,
 							wantedHorizontalOrientation != null ? wantedHorizontalOrientation : wantedHopperOrientation,
 							wantedAxies,
@@ -277,7 +290,13 @@ public class Printer extends Module {
 						&& BlockUtils.getPlaceSide(pos) != null
 					) {
 						if (!whitelistenabled.get() || whitelist.get().contains(required.getBlock())) {
-							toSort.add(new BlockPos(pos));
+                            if(canReach(mc.player, pos, printing_range.get())) {
+                                toSort.add(pos.toImmutable());
+                            } else {
+                                if(closestUnreachablePos == null || mc.player.getPos().distanceTo(pos.toCenterPos()) < mc.player.getPos().distanceTo(closestUnreachablePos.toCenterPos())) {
+                                    closestUnreachablePos = pos.toImmutable();
+                                }
+                            }
 						}
 					}
 				}
@@ -315,6 +334,15 @@ public class Printer extends Module {
 						}
 					}
 				}
+
+                if(toSort.isEmpty() && closestUnreachablePos != null && moveToUnrechable.get()) {
+                    BlockPos blockPos2D = new BlockPos(closestUnreachablePos.getY(), 0, closestUnreachablePos.getZ());
+                    Vec3d playerPos2D = mc.player.getPos().multiply(1.0, 0.0, 1.0);
+                    float distanceToBlockEdge2D = MathHelper.sqrt((float) new Box(blockPos2D).squaredMagnitude(playerPos2D));
+
+                    Vec3d relMovement2D = Vec3d.ofBottomCenter(blockPos2D).subtract(playerPos2D).normalize().multiply(distanceToBlockEdge2D - 0.6 /* Estimated player bounding box worst case*/);
+                    mc.player.move(MovementType.PLAYER, relMovement2D);
+                }
 			});
 
 
@@ -333,12 +361,12 @@ public class Printer extends Module {
     	Axis wantedAxies = advanced.get() && required.contains(Properties.AXIS) ? required.get(Properties.AXIS) : null;
     	Direction wantedHopperOrientation = advanced.get() && required.contains(Properties.HOPPER_FACING) ? required.get(Properties.HOPPER_FACING) : null;
     	//Direction wantedFace = advanced.get() && required.contains(Properties.FACING) ? required.get(Properties.FACING) : null;
-    	
+
     	Direction placeSide = placeThroughWall.get() ?
     						MyUtils.getPlaceSide(
     								pos,
     								required,
-    								wantedSlabType, 
+    								wantedSlabType,
     								wantedBlockHalf,
     								wantedHorizontalOrientation != null ? wantedHorizontalOrientation : wantedHopperOrientation,
     								wantedAxies,
@@ -346,14 +374,14 @@ public class Printer extends Module {
     						: MyUtils.getVisiblePlaceSide(
     								pos,
     								required,
-    								wantedSlabType, 
+    								wantedSlabType,
     								wantedBlockHalf,
     								wantedHorizontalOrientation != null ? wantedHorizontalOrientation : wantedHopperOrientation,
     								wantedAxies,
     								printing_range.get(),
     								wantedSide
 							);
-    	
+
 
         return MyUtils.place(pos, placeSide, wantedSlabType, wantedBlockHalf, wantedHorizontalOrientation != null ? wantedHorizontalOrientation : wantedHopperOrientation, wantedAxies, airPlace.get(), swing.get(), rotate.get(), clientSide.get(), printing_range.get());
 	}
