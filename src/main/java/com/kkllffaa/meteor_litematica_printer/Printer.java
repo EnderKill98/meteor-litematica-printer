@@ -39,6 +39,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.packet.c2s.play.CreativeInventoryActionC2SPacket;
+import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.state.property.Properties;
 import net.minecraft.util.Pair;
 import net.minecraft.util.math.*;
@@ -341,7 +342,11 @@ public class Printer extends Module {
                     float distanceToBlockEdge2D = MathHelper.sqrt((float) new Box(blockPos2D).squaredMagnitude(playerPos2D));
 
                     Vec3d relMovement2D = Vec3d.ofBottomCenter(blockPos2D).subtract(playerPos2D).normalize().multiply(distanceToBlockEdge2D - 0.6 /* Estimated player bounding box worst case*/);
+                    int extraPackets = ((int) Math.ceil(relMovement2D.length() / 10.0)) - 1;
+                    for(int i = 0; i < extraPackets; i++)
+                        mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(mc.player.isOnGround()));
                     mc.player.move(MovementType.PLAYER, relMovement2D);
+                    if(extraPackets > 0) mc.player.tick();
                 }
 			});
 
