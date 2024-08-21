@@ -219,7 +219,6 @@ public class Printer extends Module {
     private int usedSlot = -1;
     private final List<BlockPos> toSort = new ArrayList<>();
     private final List<Pair<Integer, BlockPos>> placed_fade = new ArrayList<>();
-    private BlockPos closestUnreachablePos = null;
     private int moveToUnreachableRemainingTicks = 0;
 
 
@@ -264,7 +263,6 @@ public class Printer extends Module {
 		}
 
 		toSort.clear();
-        closestUnreachablePos = null;
         if(moveToUnreachableRemainingTicks > 0)
             moveToUnreachableRemainingTicks--;
 
@@ -313,13 +311,7 @@ public class Printer extends Module {
 						&& BlockUtils.getPlaceSide(pos) != null
 					) {
 						if (!whitelistenabled.get() || whitelist.get().contains(required.getBlock())) {
-                            if(canReach(mc.player, pos, printing_range.get())) {
-                                toSort.add(pos.toImmutable());
-                            } else {
-                                if(closestUnreachablePos == null || mc.player.getPos().distanceTo(pos.toCenterPos()) < mc.player.getPos().distanceTo(closestUnreachablePos.toCenterPos())) {
-                                    closestUnreachablePos = pos.toImmutable();
-                                }
-                            }
+                            toSort.add(new BlockPos(pos));
 						}
 					}
 				}
@@ -339,14 +331,23 @@ public class Printer extends Module {
 
 
 				int placed = 0;
-				for (BlockPos pos : toSort) {
+                final BlockPos[] unreachablePos = {null};
+                for (BlockPos pos : toSort) {
 
 					BlockState state = worldSchematic.getBlockState(pos);
 					Item item = state.getBlock().asItem();
 
 					if (dirtgrass.get() && item == Items.GRASS_BLOCK)
 						item = Items.DIRT;
-					if (switchItem(item, state, () -> place(state, pos))) {
+					if (switchItem(item, state, () -> {
+                        if(!canReach(mc.player, pos, printing_range.get())) {
+                            if(unreachablePos[0] == null)
+                                unreachablePos[0] = new BlockPos(pos);
+                            return false;
+                        }else {
+                            return place(state, pos);
+                        }
+                    })) {
 						timer = 0;
 						placed++;
 						if (renderBlocks.get()) {
@@ -358,8 +359,8 @@ public class Printer extends Module {
 					}
 				}
 
-                if(toSort.isEmpty() && closestUnreachablePos != null && moveToUnreachable.get() && moveToUnreachableRemainingTicks == 0) {
-                    BlockPos blockPos2D = new BlockPos(closestUnreachablePos.getX(), 0, closestUnreachablePos.getZ());
+                if(placed == 0 && unreachablePos[0] != null && moveToUnreachable.get() && moveToUnreachableRemainingTicks == 0) {
+                    BlockPos blockPos2D = new BlockPos(unreachablePos[0].getX(), 0, unreachablePos[0].getZ());
                     Vec3d playerPos2D = mc.player.getPos().multiply(1.0, 0.0, 1.0);
                     float distanceToBlockEdge2D = MathHelper.sqrt((float) new Box(blockPos2D).squaredMagnitude(playerPos2D));
 
@@ -372,7 +373,6 @@ public class Printer extends Module {
                     mc.player.move(MovementType.PLAYER, relMovement2D);
                     if(extraPackets > 0) mc.player.tick();
 
-                    closestUnreachablePos = null;
                     moveToUnreachableRemainingTicks = moveToUnreachableCooldown.get();
                 }
 			});
