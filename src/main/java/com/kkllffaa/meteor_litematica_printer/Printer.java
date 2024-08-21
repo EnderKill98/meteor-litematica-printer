@@ -350,7 +350,7 @@ public class Printer extends Module {
 				}
 
                 if(toSort.isEmpty() && closestUnreachablePos != null && moveToUnreachable.get() && moveToUnreachableRemainingTicks == 0) {
-                    BlockPos blockPos2D = new BlockPos(closestUnreachablePos.getY(), 0, closestUnreachablePos.getZ());
+                    BlockPos blockPos2D = new BlockPos(closestUnreachablePos.getX(), 0, closestUnreachablePos.getZ());
                     Vec3d playerPos2D = mc.player.getPos().multiply(1.0, 0.0, 1.0);
                     float distanceToBlockEdge2D = MathHelper.sqrt((float) new Box(blockPos2D).squaredMagnitude(playerPos2D));
 
