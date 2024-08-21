@@ -311,7 +311,9 @@ public class Printer extends Module {
 						&& BlockUtils.getPlaceSide(pos) != null
 					) {
 						if (!whitelistenabled.get() || whitelist.get().contains(required.getBlock())) {
-                            toSort.add(new BlockPos(pos));
+                            if(moveToUnreachable.get() || canReach(mc.player, pos, printing_range.get())) {
+                                toSort.add(new BlockPos(pos));
+                            }
 						}
 					}
 				}
