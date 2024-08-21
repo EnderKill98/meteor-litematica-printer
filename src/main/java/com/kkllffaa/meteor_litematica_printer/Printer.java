@@ -188,10 +188,20 @@ public class Printer extends Module {
         .build()
     );
 
-    private final Setting<Boolean> moveToUnrechable = sgGeneral.add(new BoolSetting.Builder()
+    private final Setting<Boolean> moveToUnreachable = sgGeneral.add(new BoolSetting.Builder()
         .name("move-to-unreachable")
         .description("Attempt to 2D-Move close to next unrechable block")
         .defaultValue(true)
+        .build()
+    );
+
+    private final Setting<Integer> moveToUnreachableCooldown = sgGeneral.add(new IntSetting.Builder()
+        .name("move-to-unreachable-cooldown")
+        .description("Cooldown ticks after moving")
+        .defaultValue(8)
+        .min(0).sliderMin(1)
+        .max(1000).sliderMax(60)
+        .visible(moveToUnreachable::get)
         .build()
     );
 
@@ -201,6 +211,7 @@ public class Printer extends Module {
     private final List<BlockPos> toSort = new ArrayList<>();
     private final List<Pair<Integer, BlockPos>> placed_fade = new ArrayList<>();
     private BlockPos closestUnreachablePos = null;
+    private int moveToUnreachableRemainingTicks = 0;
 
 
 	// TODO: Add an option for smooth rotation. Make it look legit.
@@ -245,6 +256,8 @@ public class Printer extends Module {
 
 		toSort.clear();
         closestUnreachablePos = null;
+        if(moveToUnreachableRemainingTicks > 0)
+            moveToUnreachableRemainingTicks--;
 
 
 		if (timer >= printing_delay.get()) {
@@ -336,7 +349,7 @@ public class Printer extends Module {
 					}
 				}
 
-                if(toSort.isEmpty() && closestUnreachablePos != null && moveToUnrechable.get()) {
+                if(toSort.isEmpty() && closestUnreachablePos != null && moveToUnreachable.get() && moveToUnreachableRemainingTicks == 0) {
                     BlockPos blockPos2D = new BlockPos(closestUnreachablePos.getY(), 0, closestUnreachablePos.getZ());
                     Vec3d playerPos2D = mc.player.getPos().multiply(1.0, 0.0, 1.0);
                     float distanceToBlockEdge2D = MathHelper.sqrt((float) new Box(blockPos2D).squaredMagnitude(playerPos2D));
@@ -347,6 +360,9 @@ public class Printer extends Module {
                         mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(mc.player.isOnGround()));
                     mc.player.move(MovementType.PLAYER, relMovement2D);
                     if(extraPackets > 0) mc.player.tick();
+
+                    closestUnreachablePos = null;
+                    moveToUnreachableRemainingTicks = moveToUnreachableCooldown.get();
                 }
 			});
 
