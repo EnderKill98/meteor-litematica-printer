@@ -1,5 +1,6 @@
 package com.kkllffaa.meteor_litematica_printer;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -41,6 +42,7 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.packet.c2s.play.CreativeInventoryActionC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.state.property.Properties;
+import net.minecraft.text.Text;
 import net.minecraft.util.Pair;
 import net.minecraft.util.math.*;
 import net.minecraft.util.math.Direction.Axis;
@@ -205,6 +207,13 @@ public class Printer extends Module {
         .build()
     );
 
+    private final Setting<Boolean> debug = sgGeneral.add(new BoolSetting.Builder()
+        .name("debug")
+        .description("Debug")
+        .defaultValue(false)
+        .build()
+    );
+
 
     private int timer;
     private int usedSlot = -1;
@@ -356,6 +365,8 @@ public class Printer extends Module {
 
                     Vec3d relMovement2D = Vec3d.ofBottomCenter(blockPos2D).subtract(playerPos2D).normalize().multiply(distanceToBlockEdge2D - 0.6 /* Estimated player bounding box worst case*/);
                     int extraPackets = ((int) Math.ceil(relMovement2D.length() / 10.0)) - 1;
+                    if(debug.get())
+                        mc.player.sendMessage(Text.of("§d[§5Printer§d] Moving " + BigDecimal.valueOf(relMovement2D.getX()).setScale(4) + ", " + BigDecimal.valueOf(relMovement2D.getY()).setScale(4) + ", " + BigDecimal.valueOf(relMovement2D.getZ()).setScale(4) + " (" + extraPackets + ")"));
                     for(int i = 0; i < extraPackets; i++)
                         mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(mc.player.isOnGround()));
                     mc.player.move(MovementType.PLAYER, relMovement2D);
