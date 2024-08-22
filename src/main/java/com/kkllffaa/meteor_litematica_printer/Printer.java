@@ -364,16 +364,12 @@ public class Printer extends Module {
                 if(placed == 0 && unreachablePos[0] != null && moveToUnreachable.get() && moveToUnreachableRemainingTicks == 0) {
                     BlockPos blockPos2D = new BlockPos(unreachablePos[0].getX(), 0, unreachablePos[0].getZ());
                     Vec3d playerPos2D = mc.player.getPos().multiply(1.0, 0.0, 1.0);
-                    float distanceToBlockEdge2D = MathHelper.sqrt((float) new Box(blockPos2D).squaredMagnitude(playerPos2D));
+                    float distance2D = MathHelper.sqrt((float) new Box(blockPos2D).squaredMagnitude(playerPos2D)) - 0.6f /* Estimated player bounding box worst case*/;
 
-                    Vec3d relMovement2D = Vec3d.ofBottomCenter(blockPos2D).subtract(playerPos2D).normalize().multiply(distanceToBlockEdge2D - 0.6 /* Estimated player bounding box worst case*/);
-                    int extraPackets = ((int) Math.ceil(relMovement2D.length() / 10.0)) - 1;
+                    Vec3d relMovement2D = Vec3d.ofBottomCenter(blockPos2D).subtract(playerPos2D).normalize().multiply(Math.min(10.0, distance2D));
                     if(debug.get())
-                        mc.player.sendMessage(Text.of("§d[§5Printer§d] Moving " + BigDecimal.valueOf(relMovement2D.getX()).setScale(4) + ", " + BigDecimal.valueOf(relMovement2D.getY()).setScale(4) + ", " + BigDecimal.valueOf(relMovement2D.getZ()).setScale(4) + " (" + extraPackets + ")"));
-                    for(int i = 0; i < extraPackets; i++)
-                        mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(mc.player.isOnGround()));
+                        mc.player.sendMessage(Text.of("§d[§5Printer§d] Moving " + BigDecimal.valueOf(relMovement2D.getX()).setScale(4) + ", " + relMovement2D.getY() + ", " + BigDecimal.valueOf(relMovement2D.getZ()).setScale(4) + " (" + BigDecimal.valueOf(relMovement2D.length()).setScale(4) + ")"));
                     mc.player.move(MovementType.PLAYER, relMovement2D);
-                    if(extraPackets > 0) mc.player.sendMovementPackets();
 
                     moveToUnreachableRemainingTicks = moveToUnreachableCooldown.get();
                 }
