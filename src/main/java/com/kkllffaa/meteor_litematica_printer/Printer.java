@@ -362,7 +362,7 @@ public class Printer extends Module {
                     for(int i = 0; i < extraPackets; i++)
                         mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(mc.player.isOnGround()));
                     mc.player.move(MovementType.PLAYER, relMovement2D);
-                    if(extraPackets > 0) mc.player.tick();
+                    if(extraPackets > 0) mc.player.sendMovementPackets();
 
                     moveToUnreachableRemainingTicks = moveToUnreachableCooldown.get();
                 }

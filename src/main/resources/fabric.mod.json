@@ -17,6 +17,7 @@
       "com.kkllffaa.meteor_litematica_printer.Addon"
     ]
   },
+  "accessWidener": "meteor-litematica-printer.accesswidener",
   "depends": {
     "java": ">=17",
     "minecraft": ">=${mc_version}",
